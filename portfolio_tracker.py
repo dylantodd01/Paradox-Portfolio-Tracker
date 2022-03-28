@@ -42,8 +42,25 @@ class PortfolioTracker:
 			# Update the cash balance
 			self.portfolio_df['Cash'].iloc[j] = self.portfolio_df['Cash'].iloc[j-1]
 
-			# Loop through trades
-			for i, ticker in enumerate(self.trades_df['Ticker']):
+			# Check for trade entries/exits and update the portfolio df accordingly
+			self.check_for_trades(j, date)
+
+			# Calculate value of current positions
+			value = 0
+			for i, ticker in enumerate(self.positions['Ticker']):
+				close_price = yf.download(ticker, date, date + dt.timedelta(days=1))['Adj Close']
+				value += close_price * self.positions['No. Shares'].iloc[i]
+			# Calculate current equity
+			self.portfolio_df['Equity'].iloc[j] = self.portfolio_df['Cash'].iloc[j] + value
+
+			# Check for new all time high
+			self.ATH = max(self.ATH, self.portfolio_df['Equity'].iloc[j])
+			# Calculate current drawdown (%)
+			self.portfolio_df['Drawdown'].iloc[j] = ((self.portfolio_df['Equity'].iloc[j] / self.ATH) - 1) * 100
+
+
+	def check_for_trades(self, j, date):
+		for i, ticker in enumerate(self.trades_df['Ticker']):
 
 				# Check for trade entries
 				if date == self.trades_df['Entry Date'][i]:
@@ -75,23 +92,6 @@ class PortfolioTracker:
 					print(ticker, "EXIT")
 
 
-			# Calculate value of current positions
-			value = 0
-			for i, ticker in enumerate(self.positions['Ticker']):
-				close_price = yf.download(ticker, date, date + dt.timedelta(days=1))['Adj Close']
-				value += close_price * self.positions['No. Shares'].iloc[i]
-			# Calculate current equity
-			self.portfolio_df['Equity'].iloc[j] = self.portfolio_df['Cash'].iloc[j] + value
-
-			# Check for new all time high
-			self.ATH = max(self.ATH, self.portfolio_df['Equity'].iloc[j])
-			# Calculate current drawdown (%)
-			self.portfolio_df['Drawdown'].iloc[j] = ((self.portfolio_df['Equity'].iloc[j] / self.ATH) - 1) * 100
-
-
-			
-
-
 	def get_positions(self):
 		return self.positions
 
@@ -109,7 +109,6 @@ class PortfolioTracker:
 		return (holdings, amounts)
 
 
-
 	def plot(self):
 		#fig = go.Figure()
 		fig = make_subplots(
@@ -117,7 +116,8 @@ class PortfolioTracker:
 		    specs=[[{"colspan": 2}, None],
 		    	[{"type": "xy"}, {"type": "domain"}]],
 		    subplot_titles=("Paradox Performance", "Drawdown", "Holdings"),
-		    column_widths=[0.65, 0.35]
+		    column_widths=[0.65, 0.35],
+		    row_heights=[0.65, 0.35]
 		)
 		fig.update_annotations(font_size=30)
 
@@ -138,8 +138,9 @@ class PortfolioTracker:
         		family="Courier New, monospace",
         		size=18
         	),
+        	height=1400,
         	showlegend=True,
-        	legend_tracegroupgap=400
+        	legend_tracegroupgap=800 # This needs to be statically updated
         )
 
 		fig.show()
